@@ -37,10 +37,6 @@ eol = char '\n'
 parseRules :: String -> Either ParseError [Rule]
 parseRules input = parse passwordFile "(unknown)" input
 
-makeRule :: String -> Maybe(Rule)
-makeRule (a:'-':b:' ':c:':':' ':p) = Just $ Rule c (digitToInt a) (digitToInt b) p
-makeRule _ = Nothing
-
 valid :: Rule -> Bool
 valid (Rule c lower upper password) = occ >= lower && occ <= upper
       where occ = length $ filter (\x -> x == c) $ password
