@@ -14,6 +14,4 @@ combinations 0 _         = [[]]
 combinations size (x:xs) = [x:ps | ps <- combinations (size - 1) xs] ++ combinations size xs
 
 f :: [Int] -> Int
-f xs = do
-  let cs = combinations 2 xs
-  head [a*b | (a:b:_) <- cs, a + b==2020]
+f = foldl1 (*) . head . filter (\xs -> 2020 == sum xs) . combinations 2
