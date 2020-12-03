@@ -1,3 +1,5 @@
+#! /usr/bin/env runhaskell
+
 import System.IO
 import Data.Char
 import Text.ParserCombinators.Parsec
