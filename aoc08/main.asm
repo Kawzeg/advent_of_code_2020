@@ -43,7 +43,7 @@ parse_loop:
   jmp parse_loop
 
 exec:
-  ;;  DEBUG print parameters
+  ;;  DEBUG print the program
   mov si, program
 
   mov dx, si
@@ -54,11 +54,24 @@ exec:
 
   mov bp, sp
   sub sp, 4                     ; Allocate space for accumulator
+  mov word [bp-4], 0
+  mov word [bp-2], 0
+  xor bx, bx
 exec_loop:
-  mov al, [seen+si-program]
+  mov ax, si
+  call print_result
+  call write_newline
+
+  xor ax, ax
+  mov al, [seen+bx]
+
   cmp al, 0
-  je .done
-  mov byte [seen+si-program], 1
+  jne .done
+  mov al, [seen+bx]
+  cmp al, 0
+  jne .done
+  mov byte [seen+bx], 1
+  inc bx
   lodsw                         ; Fetch instruction
   cmp al, "a"                   ; acc
   je .acc
@@ -66,20 +79,32 @@ exec_loop:
   je .nop
   cmp al, "j"                   ; jmp
   je .jmp
+  jmp .nop
 .acc:
+  lodsw                         ; Fetch Parameter
+  add [bp-2], ax
+  adc word [bp-4], 0
 
   jmp .end
 .jmp:
-
+  lodsw                         ; Fetch Parameter
+  times 4 add si, ax
+  add bx, ax
   jmp .end
 .nop:
-  lodsw
+  lodsw                         ; Fetch Parameter
 .end:
+  jmp exec_loop
 
 .done:
-  mov ax, 12345
+
+  call  write_newline
+  mov ax, [bp-4]
+  call print_result
 
   call write_newline
+
+  mov ax, [bp-2]
   call print_result
 
 ;;; Execute program until it loops
@@ -207,7 +232,6 @@ parse_parameter:
   cmp al, "+"                     ; neg cx if number didn't start with a "+"
   je .ret
   call write_line
-
   neg cx
 
 .ret:
@@ -341,7 +365,6 @@ newline:
   db `\n`
 seen:
   times 0x1000 db 0
-const10:    dd 10
 zero:
   times 0x100 dw 0
 
