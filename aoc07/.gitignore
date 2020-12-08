@@ -1,0 +1,4 @@
+**/target
+**/*.rs.bk
+**/doc
+Cargo.lock
