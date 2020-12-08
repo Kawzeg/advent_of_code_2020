@@ -51,8 +51,36 @@ exec:
   mov bx, 1
   mov ah, 0x40
   int 0x21
-  lodsw
 
+  mov bp, sp
+  sub sp, 4                     ; Allocate space for accumulator
+exec_loop:
+  mov al, [seen+si-program]
+  cmp al, 0
+  je .done
+  mov byte [seen+si-program], 1
+  lodsw                         ; Fetch instruction
+  cmp al, "a"                   ; acc
+  je .acc
+  cmp al, "n"                   ; nop
+  je .nop
+  cmp al, "j"                   ; jmp
+  je .jmp
+.acc:
+
+  jmp .end
+.jmp:
+
+  jmp .end
+.nop:
+  lodsw
+.end:
+
+.done:
+  mov ax, 12345
+
+  call write_newline
+  call print_result
 
 ;;; Execute program until it loops
 
@@ -62,6 +90,41 @@ exit:
   ;;  Terminate
   mov ax,0x4c00
   int 0x21
+
+print_result:
+  push ax
+  push cx
+  push dx
+
+
+  xor dx, dx
+  mov cx, 10
+  div cx
+  test ax, ax
+  je .end
+  call print_result             ; Print rest of ax
+.end:
+  mov ax, dx
+  add ax, "0"
+  call print_char
+
+
+  pop dx
+  pop cx
+  pop ax
+  ret
+
+print_char:
+  push ax
+  push dx
+
+  mov dl, al
+  mov ah, 0x02
+  int 0x21
+
+  pop dx
+  pop ax
+  ret
 
 ;;; Parses the line from line to es:di
 ;;; Increments di by 4
@@ -74,22 +137,20 @@ parse_line:
   mov si, line
   mov al, [esi]
 
-  cmp al, 0                     ; eof
-  je eof
   cmp al, "j"                   ; jmp
-  je jmp
+  je .jmp
   cmp al, "a"                   ; acc
-  je acc
-nop:                            ; nop / else
+  je .acc
+.nop:                            ; nop / else
   mov al, "n"
-  jmp param
-acc:
+  jmp .param
+.acc:
   mov al, "a"                  ; a
-  jmp param
-jmp:
+  jmp .param
+.jmp:
   mov al, "j"
-  jmp param
-param:                          ; Parse parameter
+  jmp .param
+.param:                          ; Parse parameter
   add si, 3
   call parse_parameter          ; returns parameter in dx
 
@@ -98,8 +159,6 @@ param:                          ; Parse parameter
   mov ax, dx                    ; Write parameter to program
   stosw                         ; Write ax to edi, di+=2
 
-  mov ax, 0
-pl_ret:
   pop si
   pop cx
   pop bx
@@ -280,8 +339,12 @@ hello:
   db `Hello world!`
 newline:
   db `\n`
+seen:
+  times 0x1000 db 0
+const10:    dd 10
 zero:
   times 0x100 dw 0
+
 segment stack stack
   resb 0xff
 stacktop:
