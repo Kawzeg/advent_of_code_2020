@@ -34,43 +34,113 @@ segment code
   mov si, input
 ;;; Parse program
   mov di, program
-parse_loop:
+.parse_loop:
   call read_line
   cmp ax, 1                     ; EOF flag
-  je exec
+  je .exec
 
   call parse_line
-  jmp parse_loop
+  jmp .parse_loop
 
-exec:
-  ;;  DEBUG print the program
-  mov si, program
+.exec:
+  xor bx, bx
+  xor cx, cx
+mutate_loop:
 
-  mov dx, si
-  mov cx, 0x100
+  mov al, [program+bx]
+  cmp al, "a"
+  je .acc
+  cmp al, "n"
+  je .nop
+  cmp al, "j"
+  je .jmp
+  jmp exit
+.acc:
+  add bx, 4
+  jmp mutate_loop
+.nop:
+  mov byte [program+bx], "j"
+  call exec_program
+  mov byte [program+bx], "n"
+  add bx, 4
+  jmp .done
+.jmp:
+  mov byte [program+bx], "n"
+  call exec_program
+  mov byte [program+bx], "j"
+  add bx, 4
+.done:
+  jmp mutate_loop
+all_done:
+
+  times 2 call  write_newline
+  call print_result
+  call write_newline
+
+exit:
+  ;;  Terminate
+  mov ax,0x4c00
+  int 0x21
+
+write_program:
+  push ax
+  push bx
+  push cx
+  push dx
+
+  xor ax, ax
+  mov dx, program
+  mov cx, 0x30
   mov bx, 1
   mov ah, 0x40
   int 0x21
 
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  ret
+
+
+exec_program:
+  push ax
+  push bx
+  push cx
+  push dx
+  push bp
+  push si
   mov bp, sp
   sub sp, 4                     ; Allocate space for accumulator
   mov word [bp-4], 0
   mov word [bp-2], 0
+  xor ax, ax
   xor bx, bx
-exec_loop:
+
+  mov ax, data
+  mov ds, ax
+  mov es, ax
+  xor ax, ax
+
+  mov si, program
+  times 2 call write_newline
+  call write_program
+  call write_newline
+
+  xor bx, bx
+  call zero_seen
+
+.exec_loop:
   mov ax, bx
   inc ax
-  call write_newline
   call print_result
+  call write_newline
 
   xor ax, ax
   mov al, [seen+bx]
 
   cmp al, 0
   jne .done
-  mov al, [seen+bx]
-  cmp al, 0
-  jne .done
+
   mov byte [seen+bx], 1
   lodsw                         ; Fetch instruction
   cmp al, "a"                   ; acc
@@ -79,7 +149,8 @@ exec_loop:
   je .nop
   cmp al, "j"                   ; jmp
   je .jmp
-  ;; jmp .done
+  mov ax, [bp-2]                ;[bp-2]
+  jmp .all_done
 .acc:
   lodsw                         ; Fetch Parameter
   inc bx
@@ -97,27 +168,26 @@ exec_loop:
   lodsw                         ; Fetch Parameter
   inc bx
 .end:
-  jmp exec_loop
-
+  jmp .exec_loop
 .done:
 
-  times 2 call  write_newline
-  mov ax, [bp-4]
-  call print_result
+  mov sp, bp
+  pop si
+  pop bp
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  ret
 
-  call write_newline
+.all_done:
 
-  mov ax, [bp-2]
-  call print_result
-
-;;; Execute program until it loops
-
-;;; Print result
-
-exit:
-  ;;  Terminate
-  mov ax,0x4c00
-  int 0x21
+  mov sp, bp
+  pop bp
+  pop dx
+  pop cx
+  pop bx
+  jmp all_done
 
 print_result:
   push ax
@@ -135,7 +205,6 @@ print_result:
   mov ax, dx
   add ax, "0"
   call print_char
-
 
   pop dx
   pop cx
@@ -259,6 +328,21 @@ zero_line:
   pop di
   ret
 
+zero_seen:
+  push di
+  push si
+  push ax
+
+  mov di, seen
+  xor ax, ax
+  times 0x1000 stosb
+
+
+  pop ax
+  pop si
+  pop di
+  ret
+
 ;;; Copies bytes until \n from es:si into the line buffer
 ;;; Increments si to point at the next line
 ;;; Returns 1 in ax if eof was reached
@@ -331,20 +415,13 @@ write_line:
 
 write_newline:
   push dx
-  push cx
-  push bx
   push ax
 
-  ;; int 21h,ah=40: write to handle
-  mov dx, newline
-  mov cx, 1
-  mov bx, 1
-  mov ah, 0x40
+  mov dl, `\n`
+  mov ah, 0x02
   int 0x21
 
   pop ax
-  pop bx
-  pop cx
   pop dx
   ret
 
@@ -370,7 +447,7 @@ newline:
 seen:
   times 0x10000 db 0
 zero:
-  times 0x100 dw 0
+  times 0x1000 dw 0
 
 segment stack stack
   resb 0xff
