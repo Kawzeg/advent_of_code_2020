@@ -26,7 +26,7 @@ segment code
   ;; Read file into memory
   mov ah, 0x3f                  ; Read Handle
   mov dx, input                 ; Target buffer
-  mov cx, 0x1000                ; Number of bytes to read
+  mov cx, 0x5000                ; Number of bytes to read
   int 0x21
 
   ;; Copy line into buffer
@@ -58,9 +58,10 @@ exec:
   mov word [bp-2], 0
   xor bx, bx
 exec_loop:
-  mov ax, si
-  call print_result
+  mov ax, bx
+  inc ax
   call write_newline
+  call print_result
 
   xor ax, ax
   mov al, [seen+bx]
@@ -71,7 +72,6 @@ exec_loop:
   cmp al, 0
   jne .done
   mov byte [seen+bx], 1
-  inc bx
   lodsw                         ; Fetch instruction
   cmp al, "a"                   ; acc
   je .acc
@@ -79,26 +79,29 @@ exec_loop:
   je .nop
   cmp al, "j"                   ; jmp
   je .jmp
-  jmp .nop
+  ;; jmp .done
 .acc:
   lodsw                         ; Fetch Parameter
+  inc bx
   add [bp-2], ax
-  adc word [bp-4], 0
+  ;; adc word [bp-4], 0
 
   jmp .end
 .jmp:
   lodsw                         ; Fetch Parameter
   times 4 add si, ax
+  sub si, 4
   add bx, ax
   jmp .end
 .nop:
   lodsw                         ; Fetch Parameter
+  inc bx
 .end:
   jmp exec_loop
 
 .done:
 
-  call  write_newline
+  times 2 call  write_newline
   mov ax, [bp-4]
   call print_result
 
@@ -228,10 +231,11 @@ parse_parameter:
   mov bx, ax
   jmp .digit_loop
 .dl_end:
+  call write_line
+
   add al, "0"
   cmp al, "+"                     ; neg cx if number didn't start with a "+"
   je .ret
-  call write_line
   neg cx
 
 .ret:
@@ -347,7 +351,7 @@ write_newline:
 segment data
   ;; Program will live here
 program:
-  times 0x1000 dd 0
+  times 0x4000 db 0
   ;; Input file name
 input_file:
   db "input", 0
@@ -355,7 +359,7 @@ input_file:
 input:
   db "input file"
   db 0x10
-  times 0x1000 dd 0
+  times 0x5000 dd 0
   ;; Buffer for single lines
 line:
   times 0x100 dw 0
@@ -364,7 +368,7 @@ hello:
 newline:
   db `\n`
 seen:
-  times 0x1000 db 0
+  times 0x10000 db 0
 zero:
   times 0x100 dw 0
 
