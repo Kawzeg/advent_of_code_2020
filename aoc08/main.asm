@@ -36,7 +36,6 @@ segment code
   mov di, program
 parse_loop:
   call read_line
-  call write_line
   cmp ax, 1                     ; EOF flag
   je exec
 
@@ -46,9 +45,9 @@ parse_loop:
 exec:
   ;;  DEBUG print parameters
   mov si, program
-  lodsw                         ; Skip Instruction
-  mov dx, di
-  mov cx, 1
+
+  mov dx, si
+  mov cx, 0x100
   mov bx, 1
   mov ah, 0x40
   int 0x21
@@ -82,16 +81,16 @@ parse_line:
   cmp al, "a"                   ; acc
   je acc
 nop:                            ; nop / else
-  mov al, 0x00
+  mov al, "n"
   jmp param
 acc:
-  mov al, 0x01
+  mov al, "a"                  ; a
   jmp param
 jmp:
-  mov al, 0x02
+  mov al, "j"
   jmp param
 param:                          ; Parse parameter
-  add si, 4
+  add si, 3
   call parse_parameter          ; returns parameter in dx
 
   stosb                         ; Write al to edi, inc di
@@ -114,14 +113,9 @@ parse_parameter:
   push ax
   push bx
   push cx
+  pushf
 
-  mov dx, 0
-
-  lodsb
-  cmp al, "+"
-  je .loop
-  mov dx, 1                     ; Need to negate the result at the end
-;;; Read until end of line (0 byte)
+;;; Read until end of line buffer (0 byte)
 .loop:
   lodsb                         ; load esi into al, inc si
   cmp al, 0
@@ -132,27 +126,35 @@ parse_parameter:
   std                           ; Move backwards
   mov bx, 1
   mov cx, 0
+  sub si, 2                     ; Go to last digit
 
-.digit_loop:
-  dec si                        ; Point at last number
+  .digit_loop:
+  mov ax, 0                     ; ah had results from the last multiplication
   lodsb                         ; load esi into al, dec si
   sub al, "0"                   ; ASCII to integer
-  cmp al, 0
   jl .dl_end                    ; End of digits
+
+  mov dx, 0
   mul bx
+  mov dx, 0
   add cx, ax
   mov ax, 10
   mul bx
+  mov dx, 0
   mov bx, ax
   jmp .digit_loop
 .dl_end:
-  cmp dx, 0                     ; neg cx if number didn't start with a "+"
+  add al, "0"
+  cmp al, "+"                     ; neg cx if number didn't start with a "+"
   je .ret
+  call write_line
+
   neg cx
 
 .ret:
   mov dx, cx
-  cld                           ; Move forwards
+
+  popf
   pop cx
   pop bx
   pop ax
@@ -211,6 +213,9 @@ write_line:
   push bx
   push ax
   push si
+  pushf
+
+  cld
 
   mov si, line
 
@@ -219,7 +224,7 @@ write_line:
   lodsb
   cmp al, 0
   je .end
-  inc cx                        ; Number of chars in the line
+  inc cx                        ; Number of bytes in the line
   jmp .loop
 .end:
   ;; int 21h,ah=40: write to handle
@@ -229,6 +234,7 @@ write_line:
   int 0x21
   call write_newline
 
+  popf
   pop si
   pop ax
   pop bx
