@@ -1,18 +1,13 @@
-read = File.open("input").read
+xs = File.open("input").read.split("\n").map(&:to_i)
 
 preamble = 25
 
-def sums(q)
-  q.flat_map{|x| q.flat_map{|y| y != x ? [x+y] : []}}
-end
-
-q = []
-p read.split("\n").map{|x|x.to_i}.each{|x|
-  if q.length == preamble
-    if !sums(q).include? x
-      break x
-    end
-    q.pop()
-  end
-  q.prepend(x)
+target_index = (preamble..xs.size).each{ |i|
+  break i if !xs[i-preamble..i].combination(2).map(&:sum).include? xs[i]
+}
+p xs[target_index]
+p target_index.times.each{ |i|
+  sums = target_index.times.map{|j| xs[j,i]}.map(&:sum)
+  j = sums.find_index xs[target_index]
+  break xs[j,i].min + xs[j,i].max if j
 }
