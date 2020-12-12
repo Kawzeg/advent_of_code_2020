@@ -2,6 +2,7 @@
   (:gen-class))
 
 (require '[clojure.string :as str])
+(require '[clojure.core.matrix :as m])
 
 (def input (-> (slurp "resources/input")
                (str/split #"\n")))
@@ -16,34 +17,27 @@
     (= c \W) [-1  0]
     :else [0 0]))
 
-(defn rot90
-  [c]
-  (cond
-    (= c \N) \E
-    (= c \E) \S
-    (= c \S) \W
-    (= c \W) \N
-    :else c))
+(defn makeRotMatrix
+  "Make a rotation matrix for counterclockwise rotations of rads radians.
+  Rounded to the nearest integer for our purposes"
+  [rads]
+  [[(-> rads Math/cos Math/round) (-> rads Math/sin Math/round -)]
+   [(-> rads Math/sin Math/round) (-> rads Math/cos Math/round)]])
 
-(defn apply-rot
-  [pos f]
-  (cons (f (first pos))
-        (rest pos)))
+(defn degs->rads
+  [degs]
+  (Math/toRadians degs))
 
 (defn rot
-  [pos c degs]
-  (cond
-    (= degs 180) (apply-rot pos (comp rot90 rot90))
-    (or (and (= c \R) (= degs 90))
-        (and (= c \L) (= degs 270))) (apply-rot pos rot90)
-    (or (and (= c \R) (= degs 270))
-        (and (= c \L) (= degs 90))) (apply-rot pos (comp rot90 rot90 rot90))
-    :else pos)
-  )
+  [coord c degs]
+  (let [rads (cond
+               (= c \L) (degs->rads degs)
+               :else    (degs->rads (- 360 degs)))]
+    (m/mmul (makeRotMatrix rads) coord)))
 
 (defn translate
-  [pos dir value]
-  (cons (first pos) (map + (map (fn [x] (* x value)) (char->dir dir)) (rest pos))))
+  [coord wp value]
+  (map + coord (map (fn [x] (* x value)) wp)))
 
 ; position is a list of direction char, x coord, y coord
 (defn move
@@ -53,17 +47,17 @@
         c   (first inst)]
     (cond
       (or (= c \L)
-          (= c \R)) (rot pos c val)
-      (= c \F) (translate pos (first pos) val)
-      :else (translate pos c val))))
+          (= c \R)) (update-in pos [:wp] rot c val)
+      (= c \F) (update-in pos [:ship] translate (:wp pos) val)
+      :else (update-in pos [:wp] translate (char->dir c) val))))
 
-(def start [\E 0 0])
+(def start {:ship [0 0] :wp [10 1]})
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (let [target (reduce move start input)
-        x (nth target 1)
-        y (nth target 2)]
-    (println "Part 1")
-    (println (+ (Math/abs x) (Math/abs y)))))
+  (let [target (first (reduce (fn [xs mv] (cons (move (first xs) mv) xs)) [start] input))
+        x (nth (:ship target) 0)
+        y (nth (:ship target) 1)]
+    (println "Part 2")
+    (println (int (+ (Math/abs x) (Math/abs y))))))
