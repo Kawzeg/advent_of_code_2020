@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#define BUCKET 300
+
 struct kv {
   uint64_t k;
   uint64_t v;
@@ -61,20 +63,28 @@ uint64_t getMask(char* mask, char c) {
   return r;
 }
 
-void updateKv(struct kv* mem, uint64_t k, uint64_t v) {
-  size_t i = 0;
-  while (mem[i].k != 0) { // O(n) Update baybee
-    if (mem[i].k == k) {
-      mem[i].v = v;
-      return;
-    }
-    ++i;
-  }
-  mem[i].k = k;
-  mem[i].v = v;
+uint16_t hash(uint64_t x) {
+  return x * UINT16_C(65011);
 }
 
-void update(char* line, char* mask, struct kv* sparseMem, size_t read) {
+void updateKv(struct kv mem[][BUCKET], uint64_t k, uint64_t v) {
+  uint16_t i = hash(k);
+  size_t j = 0;
+  while (mem[i][j].k != 0) {
+    if (j >= BUCKET) {
+      printf("Hash collision!\n");
+    }
+    if (mem[i][j].k == k) {
+      mem[i][j].v = v;
+      return;
+    }
+    ++j;
+  }
+  mem[i][j].k = k;
+  mem[i][j].v = v;
+}
+
+void update(char* line, char* mask, struct kv sparseMem[][BUCKET], size_t read) {
   if (line[1] == 'a') {
     strcpy(mask, line);
   } else {
@@ -109,7 +119,9 @@ int main()
 
   // Modifying a char* x = "abc" is UB!
   // See https://cs50.stackexchange.com/questions/8899/difference-between-char-and-char-in-c
-  static char mask[] = "mask = 000000000000000000000000000000000000\n";
+  char mask[] = "mask = 000000000000000000000000000000000000\n";
+
+
   uint64_t andMask = getMask(mask, '0');
   uint64_t orMask = getMask(mask, '1');
   printf("andMask=0x%.16" PRIX64 "\n", andMask);
@@ -143,7 +155,8 @@ int main()
   if (fp == NULL)
     return 1;
 
-  struct kv sparseMem[1<<17];
+  // "Hashmap"
+  static struct kv sparseMem[1<<16][BUCKET] = {0};
 
   while ((read = getline(&line, &len, fp)) != -1) {
     update(line, mask, sparseMem, read);
@@ -151,12 +164,16 @@ int main()
 
   sum = 0;
   size_t i = 0;
-  uint64_t v;
-  do  {
-    v = sparseMem[i].v;
-    sum += v;
-    ++i;
-  } while (v != 0);
+  size_t j = 0;
+  uint64_t v = 0;
+  for (size_t i = 0; i < 1<<16; ++i) {
+    j = 0;
+    while (sparseMem[i][j].v != 0) {
+      v = sparseMem[i][j].v;
+      sum += v;
+      ++j;
+    }
+  }
   printf("Part 2 answer is: %lu\n", sum);
 
   fclose(fp);
